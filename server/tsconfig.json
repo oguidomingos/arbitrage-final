@@ -5,12 +5,21 @@
     "lib": ["es2020"],
     "declaration": true,
     "outDir": "dist",
-    "rootDir": "src",
+    "rootDir": "..",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "noImplicitAny": false,
+    "strictNullChecks": false
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "src/**/*",
+    "../hardhat/typechain-types/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }
