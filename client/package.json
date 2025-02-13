@@ -11,6 +11,7 @@
     "@types/node": "^16.18.68",
     "axios": "^1.7.9",
     "date-fns": "^4.1.0",
+    "lucide-react": "^0.475.0",
     "numeral": "^2.0.6",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

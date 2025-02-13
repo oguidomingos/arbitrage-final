@@ -1,129 +1,206 @@
-import express, { Request, Response } from 'express';
-import dotenv from 'dotenv';
-import cors from 'cors';
-import { WebSocket, WebSocketServer } from 'ws';
+import 'dotenv/config';
+import express from 'express';
 import { createServer } from 'http';
+import { WebSocketServer, WebSocket } from 'ws';
 import { checkArbitrage } from './paraswap';
 import { LogEntry } from './types';
 
-dotenv.config();
+// Interface estendida para WebSocket com propriedades adicionais
+interface ExtendedWebSocket extends WebSocket {
+  isAlive: boolean;
+  isPending: boolean;
+}
 
 const app = express();
-const port = process.env.PORT || 3002;
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
 
-app.use(cors());
+const PORT = process.env.PORT || 3002;
+const CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutos entre verificações
 
-// Armazenar logs
+// Armazenar logs das últimas verificações
 const logs: LogEntry[] = [];
+const MAX_LOGS = 100;
+const PING_INTERVAL = 30000; // 30 segundos
+const PONG_TIMEOUT = 5000; // 5 segundos
 
-const addLog = (log: LogEntry) => {
-  logs.push(log);
-  if (logs.length > 100) {
-    logs.shift(); // Manter apenas os últimos 100 logs
+let checkOpportunitiesInterval: NodeJS.Timeout;
+let pingInterval: NodeJS.Timeout;
+
+// Função para enviar logs para todos os clientes conectados
+function broadcastLogs(log: LogEntry) {
+  logs.unshift(log);
+  if (logs.length > MAX_LOGS) {
+    logs.pop();
   }
-  broadcastData('logs', logs);
-};
+  
+  let successfulClients = 0;
 
-// Armazenar clientes WebSocket conectados
-const clients = new Set<WebSocket>();
+  wss.clients.forEach((client) => {
+    const ws = client as ExtendedWebSocket;
+    if (ws.readyState === WebSocket.OPEN && !ws.isPending) {
+      ws.send(JSON.stringify({
+        type: 'log',
+        data: log
+      }));
+      successfulClients++;
+    }
+  });
 
-// Configuração do WebSocket
-wss.on('connection', (ws) => {
-  console.log('Novo cliente WebSocket conectado');
-  clients.add(ws);
+  console.log(`Log enviado para ${successfulClients} cliente(s)`);
+}
+
+// Configurar conexões WebSocket
+wss.on('connection', (socket) => {
+  const ws = socket as ExtendedWebSocket;
+  console.log('Novo cliente WebSocket conectado. Total de logs:', logs.length);
+  
+  // Inicializar propriedades do WebSocket
+  ws.isAlive = true;
+  ws.isPending = false;
 
   // Enviar logs existentes para o novo cliente
   ws.send(JSON.stringify({
-    type: 'logs',
-    data: logs,
-    timestamp: Date.now()
+    type: 'initial',
+    data: logs
   }));
 
+  // Handler para mensagens do cliente
+  ws.on('message', (data) => {
+    try {
+      const message = JSON.parse(data.toString());
+      
+      if (message.type === 'pong') {
+        ws.isAlive = true;
+        ws.isPending = false;
+      }
+    } catch (error) {
+      console.error('Erro ao processar mensagem do cliente:', error);
+    }
+  });
+
+  ws.on('error', console.error);
+  
   ws.on('close', () => {
     console.log('Cliente WebSocket desconectado');
-    clients.delete(ws);
   });
 });
 
-// Função para enviar dados para todos os clientes WebSocket
-const broadcastData = (type: string, data: any) => {
-  const message = JSON.stringify({
-    type,
-    data,
-    timestamp: Date.now()
-  });
-
-  clients.forEach((client) => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(message);
-    }
-  });
-};
-
-// Loop de verificação de arbitragem
-const startArbitrageLoop = async () => {
-  while (true) {
-    try {
-      const opportunities = await checkArbitrage(addLog);
-
-      // Filtrar oportunidades com lucro significativo (mais de 0.1% de retorno)
-      const significantOpportunities = opportunities.filter(opp => 
-        opp.profit > 0 && opp.profitPercentage > 0.001
-      );
-
-      broadcastData('opportunities', significantOpportunities);
-
-      if (significantOpportunities.length > 0) {
-        const bestProfit = Math.max(...significantOpportunities.map(o => o.profit));
-        addLog({
-          timestamp: Date.now(),
-          type: 'success',
-          message: `Encontradas ${significantOpportunities.length} oportunidades significativas`,
-          details: { profit: bestProfit }
-        });
+// Verificar conexões ativas periodicamente
+function startPingInterval() {
+  return setInterval(() => {
+    wss.clients.forEach((socket) => {
+      const ws = socket as ExtendedWebSocket;
+      if (!ws.isAlive) {
+        console.log('Cliente inativo detectado, terminando conexão');
+        return ws.terminate();
       }
 
-    } catch (error) {
-      console.error('Erro ao buscar oportunidades:', error);
-      addLog({
-        timestamp: Date.now(),
-        type: 'error',
-        message: `Erro ao buscar oportunidades: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
+      ws.isAlive = false;
+      ws.isPending = true;
+      ws.send(JSON.stringify({ type: 'ping' }));
+      
+      setTimeout(() => {
+        if (ws.isPending) {
+          console.log('Cliente não respondeu ao ping, terminando conexão');
+          ws.terminate();
+        }
+      }, PONG_TIMEOUT);
+    });
+  }, PING_INTERVAL);
+}
+
+// Função principal de verificação
+async function checkOpportunities() {
+  try {
+    const opportunities = await checkArbitrage((log) => {
+      broadcastLogs(log);
+    });
+
+    // Se encontrou oportunidades, envia para todos os clientes
+    if (opportunities.length > 0) {
+      console.log('Encontradas', opportunities.length, 'oportunidades de arbitragem');
+      wss.clients.forEach((socket) => {
+        const ws = socket as ExtendedWebSocket;
+        if (ws.readyState === WebSocket.OPEN && !ws.isPending) {
+          ws.send(JSON.stringify({
+            type: 'opportunities',
+            data: opportunities,
+            timestamp: Date.now()
+          }));
+        }
       });
     }
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Intervalo de 1 segundo
-  }
-};
-
-app.get('/api/health', (req: Request, res: Response) => {
-  res.json({
-    status: 'online',
-    uptime: process.uptime(),
-    timestamp: Date.now(),
-    connectedClients: clients.size,
-    logsCount: logs.length
-  });
-});
-
-// Manter endpoint REST como fallback
-app.get('/api/opportunities', async (req: Request, res: Response) => {
-  try {
-    const opportunities = await checkArbitrage(addLog);
-    res.json(opportunities);
   } catch (error) {
-    console.error('Erro ao buscar oportunidades:', error);
-    res.status(500).json({ error: 'Falha ao buscar oportunidades' });
+    console.error('Erro ao verificar oportunidades:', error);
+    broadcastLogs({
+      timestamp: Date.now(),
+      type: 'error',
+      message: 'Erro ao verificar oportunidades de arbitragem'
+    });
   }
+}
+
+// Função para encerrar o servidor graciosamente
+function shutdownGracefully() {
+  console.log('Encerrando servidor...');
+  
+  // Limpar todos os intervalos
+  clearInterval(checkOpportunitiesInterval);
+  clearInterval(pingInterval);
+  
+  // Fechar todas as conexões WebSocket
+  wss.clients.forEach(client => {
+    const ws = client as ExtendedWebSocket;
+    ws.terminate();
+  });
+  
+  // Fechar o servidor WebSocket e HTTP
+  wss.close(() => {
+    server.close(() => {
+      console.log('Servidor encerrado');
+      process.exit(0);
+    });
+  });
+}
+
+// Iniciar verificações periódicas
+async function startServer() {
+  try {
+    server.listen(PORT, () => {
+      console.log(`Servidor rodando na porta ${PORT}`);
+      
+      // Primeira verificação
+      checkOpportunities();
+      
+      // Configurar intervalos
+      checkOpportunitiesInterval = setInterval(checkOpportunities, CHECK_INTERVAL);
+      pingInterval = startPingInterval();
+    });
+
+    // Handler para erros do servidor
+    server.on('error', (error: any) => {
+      if (error.code === 'EADDRINUSE') {
+        console.log('Porta em uso, tentando encerrar processo anterior...');
+        process.exit(1);
+      } else {
+        console.error('Erro no servidor:', error);
+      }
+    });
+
+  } catch (error) {
+    console.error('Erro ao iniciar servidor:', error);
+    process.exit(1);
+  }
+}
+
+// Handlers para sinais de encerramento
+process.on('SIGINT', shutdownGracefully);
+process.on('SIGTERM', shutdownGracefully);
+process.on('uncaughtException', (error) => {
+  console.error('Erro não tratado:', error);
+  shutdownGracefully();
 });
 
-app.get('/api/logs', (req: Request, res: Response) => {
-  res.json(logs);
-});
-
-server.listen(port, () => {
-  console.log(`Servidor rodando na porta ${port}`);
-  // Iniciar o loop de verificação de arbitragem
-  startArbitrageLoop();
-});
+// Iniciar servidor
+startServer();

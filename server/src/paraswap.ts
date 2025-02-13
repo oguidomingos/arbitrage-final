@@ -7,6 +7,17 @@ const PARA_SWAP_API = "https://api.paraswap.io/prices";
 // Token symbols type
 type TokenSymbol = 'MATIC' | 'WMATIC' | 'USDC' | 'DAI' | 'WETH' | 'QUICK' | 'SUSHI' | 'AAVE' | 'LINK' | 'WBTC' | 'CRV' | 'BAL' | 'GHST' | 'DPI';
 
+// Rate limiting configuration
+let lastRequestTime = 0;
+let consecutiveErrors = 0;
+const MIN_REQUEST_INTERVAL = 1000; // 1 segundo entre requisições normais
+const BASE_COOLDOWN = 60000; // 1 minuto de espera base após erro 429
+const MAX_COOLDOWN = 3600000; // Máximo de 1 hora de espera
+let isInCooldown = false;
+
+// Semáforo global para controle de requisições
+let requestInProgress = false;
+
 // Cache configuration
 interface PriceCache {
   result: PriceResult;
@@ -17,7 +28,6 @@ interface PriceCache {
 const priceCache: Map<string, PriceCache> = new Map();
 const CACHE_DURATION = 30000; // 30 seconds
 const MAX_RETRIES = 3;
-const INITIAL_BACKOFF = 500; // ms
 
 // Função para verificar se uma string é um TokenSymbol válido
 function isTokenSymbol(symbol: string): symbol is TokenSymbol {
@@ -48,6 +58,26 @@ async function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+async function handleRateLimit(): Promise<void> {
+  // Aguarda se houver outra requisição em andamento
+  while (requestInProgress) {
+    await sleep(100); // Espera 100ms antes de verificar novamente
+  }
+
+  if (isInCooldown) {
+    const cooldownTime = Math.min(BASE_COOLDOWN * Math.pow(2, consecutiveErrors), MAX_COOLDOWN);
+    console.log(`Em período de cooldown. Aguardando ${cooldownTime/1000} segundos...`);
+    await sleep(cooldownTime);
+    isInCooldown = false;
+  }
+
+  const now = Date.now();
+  const timeSinceLastRequest = now - lastRequestTime;
+  await sleep(Math.max(0, MIN_REQUEST_INTERVAL - timeSinceLastRequest));
+  lastRequestTime = Date.now();
+  requestInProgress = true;
+}
+
 function getCacheKey(srcToken: TokenSymbol, destToken: TokenSymbol, amount: number): string {
   return `${srcToken}-${destToken}-${amount}`;
 }
@@ -68,10 +98,12 @@ async function getBestPriceWithRetryAndCache(
   }
 
   let currentRetry = 0;
-  let backoffTime = INITIAL_BACKOFF;
 
   while (currentRetry < retries) {
     try {
+      // Verificar rate limit antes da requisição
+      await handleRateLimit();
+
       const decimalsSrc = TOKENS[srcToken].decimals;
       const weiAmount = ethers.parseUnits(amount.toString(), decimalsSrc).toString();
 
@@ -89,7 +121,12 @@ async function getBestPriceWithRetryAndCache(
         }
       });
 
+      // Resetar contadores após sucesso
+      consecutiveErrors = 0;
+      isInCooldown = false;
+
       if (!response.data?.priceRoute || response.data.priceRoute.maxImpactReached) {
+        requestInProgress = false; // Libera o semáforo
         return null;
       }
 
@@ -109,19 +146,28 @@ async function getBestPriceWithRetryAndCache(
         expiryTime: now + CACHE_DURATION
       });
 
+      requestInProgress = false; // Libera o semáforo
       return result;
 
     } catch (error: any) {
-      if (error.response?.status === 429 && currentRetry < retries - 1) {
-        console.log(`Rate limit hit, retrying in ${backoffTime}ms... (Attempt ${currentRetry + 1}/${retries})`);
-        await sleep(backoffTime);
-        backoffTime *= 2; // Exponential backoff
-        currentRetry++;
-      } else {
-        const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-        console.error(`❌ Erro ao obter preço ${srcToken} → ${destToken}:`, errorMessage);
-        return null;
+      requestInProgress = false; // Libera o semáforo em caso de erro
+
+      if (error.response?.status === 429) {
+        consecutiveErrors++;
+        isInCooldown = true;
+        const cooldownTime = Math.min(BASE_COOLDOWN * Math.pow(2, consecutiveErrors), MAX_COOLDOWN);
+        console.log(`Rate limit atingido (${consecutiveErrors}x). Aguardando ${cooldownTime/1000} segundos antes de tentar novamente.`);
+        
+        if (currentRetry < retries - 1) {
+          await sleep(cooldownTime);
+          currentRetry++;
+          continue;
+        }
       }
+      
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      console.error(`❌ Erro ao obter preço ${srcToken} → ${destToken}:`, errorMessage);
+      return null;
     }
   }
 
@@ -157,9 +203,6 @@ export async function checkArbitrage(logCallback: LogCallback): Promise<Arbitrag
       continue;
     }
 
-    // Pequeno delay entre as chamadas para evitar rate limiting
-    await sleep(500);
-
     const step2 = await getBestPriceWithRetryAndCache(tokenIntermediario, "USDC", step1.amount);
     if (!step2) {
       logCallback({
@@ -193,16 +236,13 @@ export async function checkArbitrage(logCallback: LogCallback): Promise<Arbitrag
           { from: 'USDC', to: tokenIntermediario, amount: INITIAL_AMOUNT, dex: step1.dex },
           { from: tokenIntermediario, to: 'USDC', amount: step1.amount, dex: step2.dex }
         ],
-        gasFee: 0, // Será calculado posteriormente
+        gasFee: 0,
         flashLoanAmount: INITIAL_AMOUNT,
         totalMovimentado: INITIAL_AMOUNT + step1.amount,
         profitPercentage,
         timestamp: Date.now()
       });
     }
-
-    // Delay entre verificações de diferentes tokens
-    await sleep(500);
   }
 
   return opportunities;
