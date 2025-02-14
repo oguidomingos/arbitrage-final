@@ -1,19 +1,26 @@
-/** @type {import('ts-jest').JestConfigWithTsJest} */
-module.exports = {
-  preset: 'ts-jest',
+/** @type {import('jest').Config} */
+const config = {
   testEnvironment: 'node',
-  roots: ['<rootDir>/src'],
-  testMatch: ['**/*.test.ts'],
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
-      isolatedModules: true,
-      diagnostics: {
-        ignoreCodes: [2345, 2739, 2322]
-      }
+      tsconfig: 'tsconfig.json'
     }]
   },
-  moduleNameMapper: {
-    '^../../hardhat/typechain-types$': '<rootDir>/../hardhat/typechain-types'
-  },
-  setupFiles: ['<rootDir>/src/__tests__/setup.ts']
+  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
+  setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.ts'],
+  testTimeout: 10000,
+  verbose: true,
+  collectCoverage: true,
+  coverageDirectory: 'coverage',
+  coverageReporters: ['text', 'lcov'],
+  coverageThreshold: {
+    global: {
+      branches: 75,
+      functions: 80,
+      lines: 80,
+      statements: 80
+    }
+  }
 };
+
+module.exports = config;

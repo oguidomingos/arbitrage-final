@@ -1,17 +1,19 @@
-// Configuração do ambiente de teste
-process.env.RPC_URL = 'http://mock.rpc.url';
-process.env.PRIVATE_KEY = '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
-process.env.ARBITRAGE_EXECUTOR_ADDRESS = '0x1234567890123456789012345678901234567890';
+import { jest } from '@jest/globals';
 
-// Mock global das promises para testes
-global.Promise = jest.requireActual('promise');
+// Configurar timeout global para os testes
+jest.setTimeout(10000);
 
-// Desativar logs durante os testes
-global.console = {
-  ...console,
-  log: jest.fn(),
-  error: jest.fn(),
-  warn: jest.fn(),
-  info: jest.fn(),
-  debug: jest.fn(),
+// Helper para avançar timers e resolver promessas pendentes
+declare global {
+  // eslint-disable-next-line no-var
+  var advanceTimersAndPromises: (ms: number) => Promise<void>;
+}
+
+global.advanceTimersAndPromises = async (ms: number) => {
+  jest.advanceTimersByTime(ms);
+  // Esperar promessas pendentes serem resolvidas
+  await Promise.resolve();
+  await new Promise(resolve => setImmediate(resolve));
 };
+
+export {};
