@@ -2,16 +2,21 @@
   "name": "hardhat-project",
   "devDependencies": {
     "@aave/core-v3": "^1.19.3",
-    "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
-    "@nomicfoundation/hardhat-toolbox-viem": "^3.0.0",
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
     "@openzeppelin/contracts": "^5.2.0",
     "@typechain/ethers-v6": "^0.5.1",
     "@typechain/hardhat": "^9.1.0",
-    "@types/chai": "^5.0.1",
+    "@types/chai": "^4.2.0",
     "chai": "^4.5.0",
     "dotenv": "^16.4.7",
     "hardhat": "^2.22.18",
     "hardhat-gas-reporter": "^2.2.2",
     "typechain": "^8.3.2"
+  },
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy": "hardhat run scripts/deploy.ts",
+    "clean": "hardhat clean"
   }
 }

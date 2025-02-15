@@ -9,13 +9,17 @@ const MAX_RETRIES = 3;
 // Função auxiliar para validar endereço
 function isValidAddress(address: string): boolean {
   try {
+    // Normalizar o formato do endereço e remover espaços
+    address = ethers.getAddress(address.trim());
+    
     // Aceitar endereços de teste que começam com '0x'
     if (process.env.NODE_ENV === 'test') {
       return address.startsWith('0x') && address.length >= 3;
     } else {
-      return ethers.isAddress(address);
+      return ethers.isAddress(address) && address.startsWith('0x');
     }
   } catch (error) {
+    console.error('Erro ao validar endereço:', error);
     return false;
   }
 }
@@ -54,7 +58,13 @@ export async function executeArbitrage(signal: ExecutionSignal): Promise<void> {
     }
 
     // Conectar ao provedor usando a URL definida na variável de ambiente
-    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+    const provider = new ethers.JsonRpcProvider(
+      process.env.RPC_URL,
+      {
+        name: "polygon",
+        chainId: 137
+      }
+    );
     
     // Criar um signer com a chave privada
     const signer = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
@@ -80,24 +90,24 @@ export async function executeArbitrage(signal: ExecutionSignal): Promise<void> {
       throw new Error('Invalid amount format');
     }
 
-    // Validar endereços dos routers
+    // Validar endereços dos routers e seus parâmetros
     if (signal.swap1) {
-      if (!isValidAddress(signal.swap1.router)) {
-        throw new Error('Invalid router address');
+      if (!signal.swap1.router || !isValidAddress(signal.swap1.router)) {
+        throw new Error('Invalid router address for swap1');
       }
 
       if (!isValidBigNumberString(signal.swap1.amountOutMin)) {
-        throw new Error('Invalid amountOutMin format');
+        throw new Error('Invalid amountOutMin format for swap1');
       }
     }
 
     if (signal.swap2) {
-      if (!isValidAddress(signal.swap2.router)) {
-        throw new Error('Invalid router address');
+      if (!signal.swap2.router || !isValidAddress(signal.swap2.router)) {
+        throw new Error('Invalid router address for swap2');
       }
 
       if (!isValidBigNumberString(signal.swap2.amountOutMin)) {
-        throw new Error('Invalid amountOutMin format');
+        throw new Error('Invalid amountOutMin format for swap2');
       }
     }
 
@@ -107,6 +117,20 @@ export async function executeArbitrage(signal: ExecutionSignal): Promise<void> {
 
     while (retries < MAX_RETRIES) {
       try {
+        // Garantir que o contrato está na rede correta
+        const network = await provider.getNetwork();
+        if (network.chainId !== 137n) {
+          throw new Error(`Rede incorreta. Esperado: Polygon (137), Atual: ${network.chainId}`);
+        }
+        
+        console.log('Conectado à rede:', network.name, '(', network.chainId, ')');
+        console.log('Tentando executar arbitragem:', {
+          asset: signal.asset,
+          amount: signal.amount,
+          swap1Router: signal.swap1.router,
+          swap2Router: signal.swap2.router
+        });
+
         // Montar e enviar a transação
         const tx = await arbitrageExecutor.executeArbitrage(
           signal.asset,
