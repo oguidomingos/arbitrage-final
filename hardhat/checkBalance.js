@@ -1,0 +1,1 @@
+const hre = require("hardhat"); async function main() { const [deployer] = await hre.ethers.getSigners(); const provider = hre.ethers.provider; const balance = await provider.getBalance(deployer.address); console.log("Balance:", hre.ethers.formatEther(balance), "MATIC"); console.log("Deployer address:", deployer.address); } main().catch(console.error);

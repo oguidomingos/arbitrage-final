@@ -1,3 +1,251 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(31, 41, 55, 0.5);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(55, 65, 81, 0.8);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(75, 85, 99, 0.8);
+}
+
+/* Animations */
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 20px 0 rgba(59, 130, 246, 0.25);
+  }
+}
+
+/* Animation Classes */
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out forwards;
+}
+
+.animate-slide-out {
+  animation: slideOut 0.3s ease-out forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+.animate-fade-out {
+  animation: fadeOut 0.2s ease-out forwards;
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2s infinite;
+}
+
+/* Glass Effect */
+.glass-effect {
+  backdrop-filter: blur(12px);
+  background: rgba(17, 24, 39, 0.7);
+}
+
+/* Token Card Hover Effect */
+.token-card {
+  transition: all 0.3s ease;
+}
+
+.token-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 20px -2px rgba(59, 130, 246, 0.15);
+}
+
+/* Loading Placeholder Animation */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.loading-placeholder {
+  background: linear-gradient(
+    90deg,
+    rgba(55, 65, 81, 0.1) 25%,
+    rgba(55, 65, 81, 0.2) 37%,
+    rgba(55, 65, 81, 0.1) 63%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+}
+
+/* Profit Flash Animation */
+@keyframes profitFlash {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
+}
+
+.profit-flash {
+  animation: profitFlash 0.5s ease-in-out;
+}
+
+/* Active Token Indicator */
+.active-token::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #3b82f6;
+  right: -2px;
+  bottom: -2px;
+  box-shadow: 0 0 8px #3b82f6;
+}
+
+/* Loading Spinner Animation */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin 2s linear infinite;
+}
+
+/* Enhanced Loading Animations */
+@keyframes loader-bars {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(0.4); }
+}
+
+.loader-bars > div {
+  animation: loader-bars 1s ease-in-out infinite;
+}
+
+.loader-bars > div:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.loader-bars > div:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+/* Token Card Effects */
+.token-card {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.token-card:hover {
+  transform: translateY(-4px);
+}
+
+.token-card .profit-display {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.token-card:hover .profit-display {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Shadow Effects */
+.shadow-glow {
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.15);
+}
+
+.shadow-glow:hover {
+  box-shadow: 0 0 25px rgba(59, 130, 246, 0.25);
+}
+
+/* Glass Effect Improvements */
+.glass-effect {
+  background: rgba(17, 24, 39, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: all 0.3s ease;
+}
+
+.glass-effect:hover {
+  background: rgba(17, 24, 39, 0.8);
+}
+
+/* Loading State Transitions */
+.loading-overlay {
+  transition: opacity 0.2s ease-in-out;
+}
+
+.loading-overlay-enter {
+  opacity: 0;
+}
+
+.loading-overlay-enter-active {
+  opacity: 1;
+}
+
+.loading-overlay-exit {
+  opacity: 1;
+}
+
+.loading-overlay-exit-active {
+  opacity: 0;
+}

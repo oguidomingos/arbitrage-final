@@ -9,6 +9,7 @@ describe("ArbitrageExecutor", function () {
   let addr1: SignerWithAddress;
 
   // Endereços da Polygon
+  const AAVE_PROVIDER = "0xa97684ead0e402dC232d5A977953DF7ECBaB3CDb";
   const USDC_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
   const WMATIC_ADDRESS = "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270";
   const QUICKSWAP_ROUTER = "0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff";
@@ -17,9 +18,23 @@ describe("ArbitrageExecutor", function () {
   before(async function () {
     [owner, addr1] = await ethers.getSigners();
 
+    // Get current gas price and add a buffer
+    const feeData = await ethers.provider.getFeeData();
+    const maxFeePerGas = feeData.maxFeePerGas! * 2n;
+    const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas! * 2n;
+
     // Deploy do contrato
     const ArbitrageExecutor = await ethers.getContractFactory("ArbitrageExecutor");
-    arbitrageExecutor = await ArbitrageExecutor.deploy();
+    arbitrageExecutor = await ArbitrageExecutor.deploy(
+      AAVE_PROVIDER,
+      QUICKSWAP_ROUTER,
+      SUSHISWAP_ROUTER,
+      {
+        maxFeePerGas,
+        maxPriorityFeePerGas,
+        gasLimit: 3000000n
+      }
+    );
     await arbitrageExecutor.waitForDeployment();
 
     console.log("Contrato deployado em:", await arbitrageExecutor.getAddress());
@@ -39,7 +54,7 @@ describe("ArbitrageExecutor", function () {
     console.log("USDC está disponível no Pool da Aave");
     
     // Verificar se flash loans estão habilitados
-    const isFlashLoanEnabled = usdcData.configuration.data & (1 << 4);
+    const isFlashLoanEnabled = usdcData.configuration.data & (1n << 4n);
     expect(isFlashLoanEnabled).to.not.equal(0);
     console.log("Flash loans estão habilitados para USDC");
   });
@@ -51,13 +66,13 @@ describe("ArbitrageExecutor", function () {
     const swap1 = {
       router: QUICKSWAP_ROUTER,
       path: [USDC_ADDRESS, WMATIC_ADDRESS],
-      amountOutMin: 0 // Para teste, em produção deve ser calculado
+      amountOutMin: 0n // Para teste, em produção deve ser calculado
     };
 
     const swap2 = {
       router: SUSHISWAP_ROUTER,
       path: [WMATIC_ADDRESS, USDC_ADDRESS],
-      amountOutMin: 0 // Para teste, em produção deve ser calculado
+      amountOutMin: 0n // Para teste, em produção deve ser calculado
     };
 
     // Verificar saldo inicial
@@ -65,12 +80,22 @@ describe("ArbitrageExecutor", function () {
     const initialBalance = await usdc.balanceOf(owner.address);
 
     try {
+      // Get current gas price and add a buffer
+      const feeData = await ethers.provider.getFeeData();
+      const maxFeePerGas = feeData.maxFeePerGas! * 2n;
+      const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas! * 2n;
+
       // Executar arbitragem
       await arbitrageExecutor.executeArbitrage(
         USDC_ADDRESS,
         amount,
         swap1,
-        swap2
+        swap2,
+        {
+          maxFeePerGas,
+          maxPriorityFeePerGas,
+          gasLimit: 3000000n
+        }
       );
 
       // Verificar saldo final
@@ -92,10 +117,20 @@ describe("ArbitrageExecutor", function () {
     const contractBalance = await usdc.balanceOf(await arbitrageExecutor.getAddress());
 
     if (contractBalance > 0n) {
+      // Get current gas price and add a buffer
+      const feeData = await ethers.provider.getFeeData();
+      const maxFeePerGas = feeData.maxFeePerGas! * 2n;
+      const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas! * 2n;
+
       await arbitrageExecutor.rescueTokens(
         USDC_ADDRESS,
         owner.address,
-        contractBalance
+        contractBalance,
+        {
+          maxFeePerGas,
+          maxPriorityFeePerGas,
+          gasLimit: 3000000n
+        }
       );
 
       const newBalance = await usdc.balanceOf(await arbitrageExecutor.getAddress());

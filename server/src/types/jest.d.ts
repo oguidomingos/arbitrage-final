@@ -1,10 +1,9 @@
-import { jest } from '@jest/globals';
+import '@jest/types';
 
 declare global {
-  const jest: typeof jest;
   namespace jest {
-    interface Global {
-      console: Console;
+    interface Matchers<R> {
+      // Adicione aqui quaisquer matchers personalizados que você precise
     }
   }
 }

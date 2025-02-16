@@ -4,6 +4,8 @@ async function main() {
   console.log("Starting deployment...");
 
   const aavePoolAddressProviderPolygon = "0xa97684ead0e402dC232d5A977953DF7ECBaB3CDb";
+  const quickswapV3Router = "0xf5b509bb0909a69b1c207e495f687a596c168e12"; // Quickswap V3 Router
+  const sushiswapV2Router = "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506"; // Sushiswap V2 Router
 
   try {
     // Get the deployer account
@@ -20,6 +22,8 @@ async function main() {
     // Deploy with specific gas settings
     const arbitrageExecutor = await ArbitrageExecutor.deploy(
       aavePoolAddressProviderPolygon,
+      quickswapV3Router,
+      sushiswapV2Router,
       {
         maxFeePerGas: gasPrice.maxFeePerGas! * 2n,
         maxPriorityFeePerGas: gasPrice.maxPriorityFeePerGas! * 2n,

@@ -4,11 +4,20 @@ export interface TokenInfo {
   decimals: number;
 }
 
+// Enum para os tipos de DEX suportados
+export enum DexType {
+  UniswapV2,
+  UniswapV3,
+  Curve
+}
+
 // Interface para informações de swap
 export interface SwapInfo {
   router: string;
   path: string[];
   amountOutMin: string;
+  dexType: DexType;
+  extraData?: string; // Dados extras específicos de cada DEX, codificados em bytes
 }
 
 // Interface para os sinais de execução de arbitragem
@@ -28,7 +37,7 @@ export interface PriceResult {
 // Interface para logs
 export interface LogEntry {
   timestamp: number;
-  type: 'info' | 'error' | 'success';
+  type: 'info' | 'error' | 'success' | 'warning';
   message: string;
   details?: Record<string, any>;
 }
