@@ -1,63 +1,140 @@
-// Interface para informações dos tokens
-export interface TokenInfo {
-  address: string;
-  decimals: number;
-}
-
-// Enum para os tipos de DEX suportados
+// Tipos de DEX suportados
 export enum DexType {
-  UniswapV2,
-  UniswapV3,
-  Curve
+  UniswapV2 = 'UNISWAP_V2',
+  UniswapV3 = 'UNISWAP_V3',
+  Curve = 'CURVE'
 }
 
-// Interface para informações de swap
+// Informações de swap para um DEX específico
 export interface SwapInfo {
   router: string;
   path: string[];
   amountOutMin: string;
   dexType: DexType;
-  extraData?: string; // Dados extras específicos de cada DEX, codificados em bytes
+  extraData?: string;
 }
 
-// Interface para os sinais de execução de arbitragem
-export interface ExecutionSignal {
-  asset: string;          // Endereço do token para o flash loan
-  amount: string;         // Quantidade do flash loan em wei
-  swap1: SwapInfo;       // Informações do primeiro swap
-  swap2: SwapInfo;       // Informações do segundo swap
+// Sinal de execução de arbitragem
+export interface ArbitrageSignal {
+  asset: string;
+  amount: string;
+  swaps: SwapInfo[];
 }
 
-// Interface para resultados de preços
-export interface PriceResult {
-  amount: number;
-  dex: string;
+// Alias para compatibilidade com código existente
+export type ExecutionSignal = ArbitrageSignal;
+
+// Resultado da execução da arbitragem
+export interface ArbitrageResult {
+  success: boolean;
+  transactionHash?: string;
+  error?: string;
+  gasUsed?: string;
+  profit?: string;
 }
 
-// Interface para logs
-export interface LogEntry {
-  timestamp: number;
-  type: 'info' | 'error' | 'success' | 'warning';
-  message: string;
-  details?: Record<string, any>;
-}
-
-// Tipo para callback de logs
-export type LogCallback = (log: LogEntry) => void;
-
-// Interface para oportunidades de arbitragem
-export interface ArbitrageOpportunity {
+// Informações de rota para logs
+interface RouteDetails {
   route: string;
   profit: number;
-  steps: Array<{
-    from: string;
-    to: string;
-    amount: number;
-    dex: string;
-  }>;
-  gasFee: number;
-  flashLoanAmount: number;
-  totalMovimentado: number;
-  profitPercentage: number;
+  dex1: any;
+  dex2: any;
+}
+
+// Estrutura de log
+export interface LogMessage {
   timestamp: number;
+  type: 'info' | 'error' | 'opportunity' | 'warning';
+  message: string;
+  details?: RouteDetails;
+}
+
+// Função de callback para logs
+export type LogCallback = (message: LogMessage) => void;
+
+// Oportunidade de arbitragem detectada
+export interface ArbitrageOpportunity {
+  asset: string;
+  amount: string;
+  expectedProfit: string;
+  route?: {
+    path: string[];
+    exchanges: string[];
+  };
+  dex1: {
+    name: string;
+    path: string[];
+    fee?: number;
+    poolAddress?: string;
+    amountIn: string;
+    amountOutMin: string;
+  };
+  dex2: {
+    name: string;
+    path: string[];
+    fee?: number;
+    poolAddress?: string;
+    amountIn: string;
+    amountOutMin: string;
+  };
+}
+
+// Informações sobre token
+export interface TokenInfo {
+  address: string;
+  decimals: number;
+  symbol: string;
+  name: string;
+}
+
+// Resultado de cotação de preço
+export interface PriceResult {
+  bestRoute: Array<{
+    exchange: string;
+    srcToken: string;
+    destToken: string;
+    outputAmount: string;
+  }>;
+  gasEstimate: string;
+  outputAmount: string;
+}
+
+// Configuração de monitoramento
+export interface MonitoringConfig {
+  assets: string[];
+  dexs: {
+    name: string;
+    router: string;
+    type: DexType;
+  }[];
+  minProfitThreshold: string;
+  maxGasPrice: string;
+  updateInterval: number;
+}
+
+// Status da execução do contrato
+export interface ContractExecutionStatus {
+  status: 'pending' | 'success' | 'failed';
+  transactionHash?: string;
+  error?: string;
+  blockNumber?: number;
+  gasUsed?: string;
+  actualProfit?: string;
+}
+
+// Status da conexão com o provedor
+export interface ConnectionStatus {
+  connected: boolean;
+  chainId?: number;
+  blockNumber?: number;
+  gasPrice?: string;
+  lastUpdate?: Date;
+}
+
+// Configuração do adaptador DEX
+export interface DexAdapterConfig {
+  router: string;
+  type: DexType;
+  poolAddress?: string;
+  fee?: number;
 }
